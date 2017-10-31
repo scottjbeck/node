@@ -1,8 +1,6 @@
 #include "node.h"
 #include "node_i18n.h"
-#include "env.h"
 #include "env-inl.h"
-#include "util.h"
 #include "util-inl.h"
 #include "node_debug_options.h"
 
@@ -44,6 +42,12 @@ static void InitConfig(Local<Object> target,
   Environment* env = Environment::GetCurrent(context);
   Isolate* isolate = env->isolate();
 
+#ifdef NODE_FIPS_MODE
+  READONLY_BOOLEAN_PROPERTY("fipsMode");
+  if (force_fips_crypto)
+    READONLY_BOOLEAN_PROPERTY("fipsForced");
+#endif
+
 #ifdef NODE_HAVE_I18N_SUPPORT
 
   READONLY_BOOLEAN_PROPERTY("hasIntl");
@@ -65,8 +69,18 @@ static void InitConfig(Local<Object> target,
   if (config_preserve_symlinks)
     READONLY_BOOLEAN_PROPERTY("preserveSymlinks");
 
-  if (config_experimental_modules)
+  if (config_experimental_modules) {
     READONLY_BOOLEAN_PROPERTY("experimentalModules");
+    if (!config_userland_loader.empty()) {
+      target->DefineOwnProperty(
+          context,
+          FIXED_ONE_BYTE_STRING(isolate, "userLoader"),
+          String::NewFromUtf8(isolate,
+                              config_userland_loader.data(),
+                              v8::NewStringType::kNormal).ToLocalChecked(),
+          ReadOnly).FromJust();
+    }
+  }
 
   if (config_pending_deprecation)
     READONLY_BOOLEAN_PROPERTY("pendingDeprecation");

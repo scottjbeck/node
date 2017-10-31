@@ -20,16 +20,14 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "tls_wrap.h"
-#include "async-wrap.h"
 #include "async-wrap-inl.h"
 #include "node_buffer.h"  // Buffer
 #include "node_crypto.h"  // SecureContext
 #include "node_crypto_bio.h"  // NodeBIO
-#include "node_crypto_clienthello.h"  // ClientHelloParser
+// ClientHelloParser
 #include "node_crypto_clienthello-inl.h"
 #include "node_counters.h"
 #include "node_internals.h"
-#include "stream_base.h"
 #include "stream_base-inl.h"
 
 namespace node {
@@ -42,6 +40,7 @@ using v8::Exception;
 using v8::Function;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
+using v8::Integer;
 using v8::Local;
 using v8::Object;
 using v8::String;
@@ -66,7 +65,6 @@ TLSWrap::TLSWrap(Environment* env,
       started_(false),
       established_(false),
       shutdown_(false),
-      error_(nullptr),
       cycle_depth_(0),
       eof_(false) {
   node::Wrap(object(), this);
@@ -103,8 +101,6 @@ TLSWrap::~TLSWrap() {
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
   sni_context_.Reset();
 #endif  // SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
-
-  ClearError();
 }
 
 
@@ -186,7 +182,7 @@ void TLSWrap::Wrap(const FunctionCallbackInfo<Value>& args) {
 
   if (args.Length() < 1 || !args[0]->IsObject()) {
     return env->ThrowTypeError(
-        "First argument should be a StreamWrap instance");
+        "First argument should be a LibuvStreamWrap instance");
   }
   if (args.Length() < 2 || !args[1]->IsObject()) {
     return env->ThrowTypeError(
@@ -300,6 +296,7 @@ void TLSWrap::EncOut() {
 
   // No data to write
   if (BIO_pending(enc_out_) == 0) {
+    UpdateWriteQueueSize();
     if (clear_in_->Length() == 0)
       InvokeQueued(0);
     return;
@@ -367,7 +364,7 @@ void TLSWrap::EncOutCb(WriteWrap* req_wrap, int status) {
 }
 
 
-Local<Value> TLSWrap::GetSSLError(int status, int* err, const char** msg) {
+Local<Value> TLSWrap::GetSSLError(int status, int* err, std::string* msg) {
   EscapableHandleScope scope(env()->isolate());
 
   // ssl_ is already destroyed in reading EOF by close notify alert.
@@ -398,13 +395,9 @@ Local<Value> TLSWrap::GetSSLError(int status, int* err, const char** msg) {
             OneByteString(env()->isolate(), mem->data, mem->length);
         Local<Value> exception = Exception::Error(message);
 
-        if (msg != nullptr) {
-          CHECK_EQ(*msg, nullptr);
-          char* const buf = new char[mem->length + 1];
-          memcpy(buf, mem->data, mem->length);
-          buf[mem->length] = '\0';
-          *msg = buf;
-        }
+        if (msg != nullptr)
+          msg->assign(mem->data, mem->data + mem->length);
+
         BIO_free_all(bio);
 
         return scope.Escape(exception);
@@ -516,12 +509,11 @@ bool TLSWrap::ClearIn() {
 
   // Error or partial write
   int err;
-  const char* error_str = nullptr;
+  std::string error_str;
   Local<Value> arg = GetSSLError(written, &err, &error_str);
   if (!arg.IsEmpty()) {
     MakePending();
-    InvokeQueued(UV_EPROTO, error_str);
-    delete[] error_str;
+    InvokeQueued(UV_EPROTO, error_str.c_str());
     clear_in_->Reset();
   }
 
@@ -559,6 +551,18 @@ bool TLSWrap::IsClosing() {
 }
 
 
+uint32_t TLSWrap::UpdateWriteQueueSize(uint32_t write_queue_size) {
+  HandleScope scope(env()->isolate());
+  if (write_queue_size == 0)
+    write_queue_size = BIO_pending(enc_out_);
+  object()->Set(env()->context(),
+                env()->write_queue_size_string(),
+                Integer::NewFromUnsigned(env()->isolate(),
+                                         write_queue_size)).FromJust();
+  return write_queue_size;
+}
+
+
 int TLSWrap::ReadStart() {
   return stream_->ReadStart();
 }
@@ -570,13 +574,12 @@ int TLSWrap::ReadStop() {
 
 
 const char* TLSWrap::Error() const {
-  return error_;
+  return error_.empty() ? nullptr : error_.c_str();
 }
 
 
 void TLSWrap::ClearError() {
-  delete[] error_;
-  error_ = nullptr;
+  error_.clear();
 }
 
 
@@ -600,8 +603,12 @@ int TLSWrap::DoWrite(WriteWrap* w,
     ClearOut();
     // However, if there is any data that should be written to the socket,
     // the callback should not be invoked immediately
-    if (BIO_pending(enc_out_) == 0)
+    if (BIO_pending(enc_out_) == 0) {
+      // net.js expects writeQueueSize to be > 0 if the write isn't
+      // immediately flushed
+      UpdateWriteQueueSize(1);
       return stream_->DoWrite(w, bufs, count, send_handle);
+    }
   }
 
   // Queue callback to execute it on next tick
@@ -624,11 +631,7 @@ int TLSWrap::DoWrite(WriteWrap* w,
 
   if (ssl_ == nullptr) {
     ClearError();
-
-    static char msg[] = "Write after DestroySSL";
-    char* tmp = new char[sizeof(msg)];
-    memcpy(tmp, msg, sizeof(msg));
-    error_ = tmp;
+    error_ = "Write after DestroySSL";
     return UV_EPROTO;
   }
 
@@ -655,13 +658,15 @@ int TLSWrap::DoWrite(WriteWrap* w,
 
   // Try writing data immediately
   EncOut();
+  UpdateWriteQueueSize();
 
   return 0;
 }
 
 
 void TLSWrap::OnAfterWriteImpl(WriteWrap* w, void* ctx) {
-  // Intentionally empty
+  TLSWrap* wrap = static_cast<TLSWrap*>(ctx);
+  wrap->UpdateWriteQueueSize();
 }
 
 
@@ -925,6 +930,15 @@ int TLSWrap::SelectSNIContextCallback(SSL* s, int* ad, void* arg) {
 #endif  // SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
 
 
+void TLSWrap::UpdateWriteQueueSize(const FunctionCallbackInfo<Value>& args) {
+  TLSWrap* wrap;
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+
+  uint32_t write_queue_size = wrap->UpdateWriteQueueSize();
+  args.GetReturnValue().Set(write_queue_size);
+}
+
+
 void TLSWrap::Initialize(Local<Object> target,
                          Local<Value> unused,
                          Local<Context> context) {
@@ -951,6 +965,7 @@ void TLSWrap::Initialize(Local<Object> target,
   env->SetProtoMethod(t, "enableSessionCallbacks", EnableSessionCallbacks);
   env->SetProtoMethod(t, "destroySSL", DestroySSL);
   env->SetProtoMethod(t, "enableCertCb", EnableCertCb);
+  env->SetProtoMethod(t, "updateWriteQueueSize", UpdateWriteQueueSize);
 
   StreamBase::AddMethods<TLSWrap>(env, t, StreamBase::kFlagHasWritev);
   SSLWrap<TLSWrap>::AddMethods(env, t);

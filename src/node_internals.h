@@ -25,9 +25,7 @@
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
 #include "node.h"
-#include "util.h"
 #include "util-inl.h"
-#include "env.h"
 #include "env-inl.h"
 #include "uv.h"
 #include "v8.h"
@@ -90,6 +88,11 @@ extern bool config_preserve_symlinks;
 // Used in node_config.cc to set a constant on process.binding('config')
 // that is used by lib/module.js
 extern bool config_experimental_modules;
+
+// Set in node.cc by ParseArgs when --loader is used.
+// Used in node_config.cc to set a constant on process.binding('config')
+// that is used by lib/internal/bootstrap_node.js
+extern std::string config_userland_loader;
 
 // Set in node.cc by ParseArgs when --expose-internals or --expose_internals is
 // used.
@@ -300,6 +303,8 @@ class InternalCallbackScope {
                         v8::Local<v8::Object> object,
                         const async_context& asyncContext,
                         ResourceExpectation expect = kRequireResource);
+  // Utility that can be used by AsyncWrap classes.
+  explicit InternalCallbackScope(AsyncWrap* async_wrap);
   ~InternalCallbackScope();
   void Close();
 
@@ -318,6 +323,9 @@ class InternalCallbackScope {
   bool pushed_ids_ = false;
   bool closed_ = false;
 };
+
+#define NODE_MODULE_CONTEXT_AWARE_INTERNAL(modname, regfunc)          \
+  NODE_MODULE_CONTEXT_AWARE_X(modname, regfunc, NULL, NM_F_INTERNAL)  \
 
 }  // namespace node
 

@@ -23,7 +23,7 @@
 const common = require('../common');
 const assert = require('assert');
 
-const { execFileSync, execSync } = require('child_process');
+const { execFileSync, execSync, spawnSync } = require('child_process');
 
 const TIMER = 200;
 const SLEEP = 2000;
@@ -53,7 +53,8 @@ try {
   assert.strictEqual(e.errno, 'ETIMEDOUT');
   err = e;
 } finally {
-  assert.strictEqual(ret, undefined, 'we should not have a return value');
+  assert.strictEqual(ret, undefined,
+                     `should not have a return value, received ${ret}`);
   assert.strictEqual(caught, true, 'execSync should throw');
   const end = Date.now() - start;
   assert(end < SLEEP);
@@ -74,11 +75,11 @@ cmd = `"${process.execPath}" -e "console.log('${msg}');"`;
 ret = execSync(cmd);
 
 assert.strictEqual(ret.length, msgBuf.length);
-assert.deepStrictEqual(ret, msgBuf, 'execSync result buffer should match');
+assert.deepStrictEqual(ret, msgBuf);
 
 ret = execSync(cmd, { encoding: 'utf8' });
 
-assert.strictEqual(ret, `${msg}\n`, 'execSync encoding result should match');
+assert.strictEqual(ret, `${msg}\n`);
 
 const args = [
   '-e',
@@ -90,8 +91,7 @@ assert.deepStrictEqual(ret, msgBuf);
 
 ret = execFileSync(process.execPath, args, { encoding: 'utf8' });
 
-assert.strictEqual(ret, `${msg}\n`,
-                   'execFileSync encoding result should match');
+assert.strictEqual(ret, `${msg}\n`);
 
 // Verify that the cwd option works - GH #7824
 {
@@ -112,6 +112,16 @@ assert.strictEqual(ret, `${msg}\n`,
 // Verify the execFileSync() behavior when the child exits with a non-zero code.
 {
   const args = ['-e', 'process.exit(1)'];
+  const spawnSyncResult = spawnSync(process.execPath, args);
+  const spawnSyncKeys = Object.keys(spawnSyncResult).sort();
+  assert.deepStrictEqual(spawnSyncKeys, [
+    'output',
+    'pid',
+    'signal',
+    'status',
+    'stderr',
+    'stdout'
+  ]);
 
   assert.throws(() => {
     execFileSync(process.execPath, args);
@@ -121,6 +131,11 @@ assert.strictEqual(ret, `${msg}\n`,
     assert(err instanceof Error);
     assert.strictEqual(err.message, msg);
     assert.strictEqual(err.status, 1);
+    assert.strictEqual(typeof err.pid, 'number');
+    spawnSyncKeys.forEach((key) => {
+      if (key === 'pid') return;
+      assert.deepStrictEqual(err[key], spawnSyncResult[key]);
+    });
     return true;
   });
 }

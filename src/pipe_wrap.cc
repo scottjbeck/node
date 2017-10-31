@@ -23,7 +23,6 @@
 
 #include "async-wrap.h"
 #include "connection_wrap.h"
-#include "env.h"
 #include "env-inl.h"
 #include "handle_wrap.h"
 #include "node.h"
@@ -32,7 +31,6 @@
 #include "connect_wrap.h"
 #include "stream_wrap.h"
 #include "util-inl.h"
-#include "util.h"
 
 namespace node {
 
@@ -80,9 +78,9 @@ void PipeWrap::Initialize(Local<Object> target,
   env->SetProtoMethod(t, "hasRef", HandleWrap::HasRef);
 
 #ifdef _WIN32
-  StreamWrap::AddMethods(env, t);
+  LibuvStreamWrap::AddMethods(env, t);
 #else
-  StreamWrap::AddMethods(env, t, StreamBase::kFlagHasWritev);
+  LibuvStreamWrap::AddMethods(env, t, StreamBase::kFlagHasWritev);
 #endif
 
   env->SetProtoMethod(t, "bind", Bind);

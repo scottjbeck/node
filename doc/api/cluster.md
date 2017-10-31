@@ -5,7 +5,7 @@
 > Stability: 2 - Stable
 
 A single instance of Node.js runs in a single thread. To take advantage of
-multi-core systems the user will sometimes want to launch a cluster of Node.js
+multi-core systems, the user will sometimes want to launch a cluster of Node.js
 processes to handle the load.
 
 The cluster module allows easy creation of child processes that all share
@@ -706,8 +706,8 @@ changes:
 
 * {Object}
   * `execArgv` {Array} List of string arguments passed to the Node.js
-    executable. (Default=`process.execArgv`)
-  * `exec` {string} File path to worker file.  (Default=`process.argv[1]`)
+    executable. **Default:** `process.execArgv`
+  * `exec` {string} File path to worker file. **Default:** `process.argv[1]`
   * `args` {Array} String arguments passed to worker.
     **Default:** `process.argv.slice(2)`
   * `silent` {boolean} Whether or not to send output to parent's stdio.

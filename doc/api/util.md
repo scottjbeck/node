@@ -455,12 +455,28 @@ util.inspect.defaultOptions.maxArrayLength = null;
 console.log(arr); // logs the full array
 ```
 
+## util.isDeepStrictEqual(val1, val2)
+<!-- YAML
+added: REPLACEME
+-->
+
+* `val1` {any}
+* `val2` {any}
+* Returns: {string}
+
+Returns `true` if there is deep strict equality between `val` and `val2`.
+Otherwise, returns `false`.
+
+See [`assert.deepStrictEqual()`][] for more information about deep strict
+equality.
+
 ## util.promisify(original)
 <!-- YAML
 added: v8.0.0
 -->
 
 * `original` {Function}
+* Returns: {Function}
 
 Takes a function following the common Node.js callback style, i.e. taking a
 `(err, value) => ...` callback as the last argument, and returns a version
@@ -525,6 +541,16 @@ console.log(promisified === doSomething[util.promisify.custom]);
 This can be useful for cases where the original function does not follow the
 standard format of taking an error-first callback as the last argument.
 
+For example, with a function that takes in `(foo, onSuccessCallback, onErrorCallback)`:
+
+```js
+doSomething[util.promisify.custom] = function(foo) {
+  return new Promise(function(resolve, reject) {
+    doSomething(foo, resolve, reject);
+  });
+};
+```
+
 ### util.promisify.custom
 <!-- YAML
 added: v8.0.0
@@ -539,8 +565,6 @@ see [Custom promisified functions][].
 <!-- YAML
 added: v8.3.0
 -->
-
-> Stability: 1 - Experimental
 
 An implementation of the [WHATWG Encoding Standard][] `TextDecoder` API.
 
@@ -678,8 +702,6 @@ mark.
 <!-- YAML
 added: v8.3.0
 -->
-
-> Stability: 1 - Experimental
 
 An implementation of the [WHATWG Encoding Standard][] `TextEncoder` API. All
 instances of `TextEncoder` only support UTF-8 encoding.
@@ -1180,6 +1202,7 @@ Deprecated predecessor of `console.log`.
 [`Buffer.isBuffer()`]: buffer.html#buffer_class_method_buffer_isbuffer_obj
 [`Error`]: errors.html#errors_class_error
 [`Object.assign()`]: https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
+[`assert.deepStrictEqual()`]: assert.html#assert_assert_deepstrictequal_actual_expected_message
 [`console.error()`]: console.html#console_console_error_data_args
 [`console.log()`]: console.html#console_console_log_data_args
 [`util.inspect()`]: #util_util_inspect_object_options

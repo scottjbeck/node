@@ -117,7 +117,7 @@ const sandbox = {
 
 const script = new vm.Script('count += 1; name = "kitty";');
 
-const context = new vm.createContext(sandbox);
+const context = vm.createContext(sandbox);
 for (let i = 0; i < 10; ++i) {
   script.runInContext(context);
 }
@@ -313,6 +313,11 @@ console.log(util.inspect(sandbox));
 ## vm.runInDebugContext(code)
 <!-- YAML
 added: v0.11.14
+deprecated: v8.0.0
+changes:
+    - version: REPLACEME
+      pr-url: https://github.com/nodejs/node/pull/12815
+      description: Calling this function now emits a deprecation warning.
 -->
 
 > Stability: 0 - Deprecated. An alternative is in development.

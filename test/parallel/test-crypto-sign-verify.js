@@ -23,7 +23,7 @@ const modSize = 1024;
   let s1stream = crypto.createSign('SHA1');
   s1stream.end('Test123');
   s1stream = s1stream.sign(keyPem, 'base64');
-  assert.strictEqual(s1, s1stream, 'Stream produces same output');
+  assert.strictEqual(s1, s1stream, `${s1} should equal ${s1stream}`);
 
   const verified = crypto.createVerify('SHA1')
                          .update('Test')
@@ -39,7 +39,7 @@ const modSize = 1024;
   let s2stream = crypto.createSign('SHA256');
   s2stream.end('Test123');
   s2stream = s2stream.sign(keyPem, 'latin1');
-  assert.strictEqual(s2, s2stream, 'Stream produces same output');
+  assert.strictEqual(s2, s2stream, `${s2} should equal ${s2stream}`);
 
   let verified = crypto.createVerify('SHA256')
                        .update('Test')
@@ -276,4 +276,107 @@ const modSize = 1024;
   exec(cmd, common.mustCall((err, stdout, stderr) => {
     assert(stdout.includes('Verified OK'));
   }));
+}
+
+[1, [], {}, undefined, null, true, Infinity].forEach((i) => {
+  common.expectsError(
+    () => crypto.createSign(),
+    {
+      code: 'ERR_INVALID_ARG_TYPE',
+      type: TypeError,
+      message: 'The "algorithm" argument must be of type string'
+    }
+  );
+  common.expectsError(
+    () => crypto.createVerify(),
+    {
+      code: 'ERR_INVALID_ARG_TYPE',
+      type: TypeError,
+      message: 'The "algorithm" argument must be of type string'
+    }
+  );
+});
+
+{
+  const sign = crypto.createSign('SHA1');
+  const verify = crypto.createVerify('SHA1');
+
+  [1, [], {}, undefined, null, true, Infinity].forEach((i) => {
+    common.expectsError(
+      () => sign.update(i),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "data" argument must be one of type string, Buffer, ' +
+                 'TypedArray, or DataView'
+      }
+    );
+    common.expectsError(
+      () => verify.update(i),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "data" argument must be one of type string, Buffer, ' +
+                 'TypedArray, or DataView'
+      }
+    );
+    common.expectsError(
+      () => sign._write(i, 'utf8', () => {}),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "data" argument must be one of type string, Buffer, ' +
+                 'TypedArray, or DataView'
+      }
+    );
+    common.expectsError(
+      () => verify._write(i, 'utf8', () => {}),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "data" argument must be one of type string, Buffer, ' +
+                 'TypedArray, or DataView'
+      }
+    );
+  });
+
+  [
+    Uint8Array, Uint16Array, Uint32Array, Float32Array, Float64Array
+  ].forEach((i) => {
+    // These should all just work
+    sign.update(new i());
+    verify.update(new i());
+  });
+
+  [1, {}, [], Infinity].forEach((i) => {
+    common.expectsError(
+      () => sign.sign(i),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "key" argument must be one of type string, Buffer, ' +
+                 'TypedArray, or DataView'
+      }
+    );
+
+    common.expectsError(
+      () => verify.verify(i),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "key" argument must be one of type string, Buffer, ' +
+                 'TypedArray, or DataView'
+      }
+    );
+
+    common.expectsError(
+      () => verify.verify('test', i),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "signature" argument must be one of type string, ' +
+                 'Buffer, TypedArray, or DataView'
+      }
+    );
+  });
 }

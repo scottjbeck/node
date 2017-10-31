@@ -2,11 +2,9 @@
 
 #include "connect_wrap.h"
 #include "env-inl.h"
-#include "env.h"
 #include "pipe_wrap.h"
 #include "stream_wrap.h"
 #include "tcp_wrap.h"
-#include "util.h"
 #include "util-inl.h"
 
 namespace node {
@@ -24,10 +22,10 @@ template <typename WrapType, typename UVType>
 ConnectionWrap<WrapType, UVType>::ConnectionWrap(Environment* env,
                                                  Local<Object> object,
                                                  ProviderType provider)
-    : StreamWrap(env,
-                 object,
-                 reinterpret_cast<uv_stream_t*>(&handle_),
-                 provider) {}
+    : LibuvStreamWrap(env,
+                      object,
+                      reinterpret_cast<uv_stream_t*>(&handle_),
+                      provider) {}
 
 
 template <typename WrapType, typename UVType>

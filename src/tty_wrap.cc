@@ -21,15 +21,12 @@
 
 #include "tty_wrap.h"
 
-#include "env.h"
 #include "env-inl.h"
 #include "handle_wrap.h"
 #include "node_buffer.h"
 #include "node_wrap.h"
-#include "req-wrap.h"
 #include "req-wrap-inl.h"
 #include "stream_wrap.h"
-#include "util.h"
 #include "util-inl.h"
 
 namespace node {
@@ -63,7 +60,7 @@ void TTYWrap::Initialize(Local<Object> target,
   env->SetProtoMethod(t, "ref", HandleWrap::Ref);
   env->SetProtoMethod(t, "hasRef", HandleWrap::HasRef);
 
-  StreamWrap::AddMethods(env, t, StreamBase::kFlagNoShutdown);
+  LibuvStreamWrap::AddMethods(env, t, StreamBase::kFlagNoShutdown);
 
   env->SetProtoMethod(t, "getWindowSize", TTYWrap::GetWindowSize);
   env->SetProtoMethod(t, "setRawMode", SetRawMode);
@@ -169,10 +166,10 @@ TTYWrap::TTYWrap(Environment* env,
                  int fd,
                  bool readable,
                  int* init_err)
-    : StreamWrap(env,
-                 object,
-                 reinterpret_cast<uv_stream_t*>(&handle_),
-                 AsyncWrap::PROVIDER_TTYWRAP) {
+    : LibuvStreamWrap(env,
+                      object,
+                      reinterpret_cast<uv_stream_t*>(&handle_),
+                      AsyncWrap::PROVIDER_TTYWRAP) {
   *init_err = uv_tty_init(env->event_loop(), &handle_, fd, readable);
 }
 

@@ -1,14 +1,11 @@
-#include "stream_base.h"
 #include "stream_base-inl.h"
 #include "stream_wrap.h"
 
 #include "node.h"
 #include "node_buffer.h"
-#include "env.h"
 #include "env-inl.h"
 #include "js_stream.h"
 #include "string_bytes.h"
-#include "util.h"
 #include "util-inl.h"
 #include "v8.h"
 
@@ -365,7 +362,7 @@ int StreamBase::WriteString(const FunctionCallbackInfo<Value>& args) {
       HandleWrap* wrap;
       ASSIGN_OR_RETURN_UNWRAP(&wrap, send_handle_obj, UV_EINVAL);
       send_handle = wrap->GetHandle();
-      // Reference StreamWrap instance to prevent it from being garbage
+      // Reference LibuvStreamWrap instance to prevent it from being garbage
       // collected before `AfterWrite` is called.
       CHECK_EQ(false, req_wrap->persistent().IsEmpty());
       req_wrap_obj->Set(env->handle_string(), send_handle_obj);
